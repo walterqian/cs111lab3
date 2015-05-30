@@ -1159,9 +1159,9 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		return -EIO;
 	
 	//set file values
-	file_oi->size = 0;
+	file_oi->oi_size = 0;
 	file_oi->oi_ftype = OSPFS_FTYPE_REG;
-	file_oi->di_nlink = 1;
+	file_oi->oi_nlink = 1;
 	file_oi->oi_mode = mode;
 
 	//create dir, set dir values
@@ -1169,8 +1169,8 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	if (IS_ERR(new_entry))
 		return PTR_ERR(new_entry);
 	new_entry->od_ino = entry_ino;
-	memcpy(new_entry->od_name, direntry->od_name.name, direntry->od_name.len);
-	new_entry->od_name[direntry->d_name.len] = '\0';
+	memcpy(new_entry->od_name, dentry->d_name.name, dentry->d_name.len);
+	new_entry->od_name[dentry->d_name.len] = '\0';
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
