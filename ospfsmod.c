@@ -906,9 +906,17 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
 
+	if (filp->f_flags & O_APPEND)
+		*f_pos = oi->oi_size;
+
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
+	
+	if ((*f_pos + count) > oi->oi_size){
+		if (change_size(oi, *f_pos + count) < 0)
+			goto done;
+	}
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -928,8 +936,12 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
 		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
+		n = OSPFS_BLKSIZE - (*f_pos % OSPFS_BLKSIZE); //find size of rest of block
+		if (n > count - amount) //if the data will not fill last block
+			n = count - amount;
+		if (copy_from_user(data + (*f_pos % OSPFS_BLKSIZE), buffer, n) > 0) // copy from user = 0 on fail
+			return -EFAULT;
+		
 
 		buffer += n;
 		amount += n;
