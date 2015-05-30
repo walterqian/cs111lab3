@@ -761,14 +761,16 @@ add_block(ospfs_inode_t *oi)
 	case 0:
 	  if (!oi->oi_indirect){
 	    
-	    if(!(allocated[0] = allocate_block()))
+	    allocated[0] = allocate_block();
+	    if (!allocated[0])
 	      return -ENOSPC;
+	    
 	    memset(ospfs_block(allocated[0]),0,OSPFS_BLKSIZE);
 	    
 	    oi->oi_indirect = allocated[0];
 	  }
 	  
-	  dir = allocated_block();
+	  dir = allocate_block();
 	  if (!dir){
 	    if (allocated[0]){
 	      free_block(allocated[0]);
@@ -788,13 +790,14 @@ add_block(ospfs_inode_t *oi)
 	    return -ENOSPC;
 	  
 	  if (!oi->oi_indirect2){
-	    if (!(allocated[0] = allocate_block())){
+	    allocated[0] = allocate_block();
+	    if (!allocated[0])
 	      return -ENOSPC;
-	    }
+
 	    memset(ospfs_block(allocated[0]),0,OSPFS_BLKSIZE);
-	    
+	   
 	    oi->oi_indirect2 = allocated[0];
-	    
+	  }
 	    in = ((uint32_t*)ospfs_block(oi->oi_indirect2))[indir_index(n)];
 
 	    if (!in){
@@ -828,11 +831,11 @@ add_block(ospfs_inode_t *oi)
 	    memset(ospfs_block(dir),0,OSPFS_BLKSIZE);
 	    
 	    ((uint32_t*)ospfs_block(in))[direct_index(n)] = dir;
-	  }
-	
-	
-	  
 	}
+	
+	
+
+
 	/* EXERCISE: Your code here */
 	oi->oi_size += OSPFS_BLKSIZE;
 	return 0; // Replace this line
@@ -1167,7 +1170,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		n = OSPFS_BLKSIZE - (*f_pos % OSPFS_BLKSIZE); //find size of rest of block
 		if (n > count - amount) //if the data will not fill last block
 			n = count - amount;
-		if (copy_from_user(data + (*f_pos % OSPFS_BLKSIZE), buffer, n) > 0) // copy from user = 0 on fail
+		if (copy_from_user(data + (*f_pos % OSPFS_BLKSIZE), buffer, n) != 0) // copy from user = 0 on fail
 			return -EFAULT;
 		
 
@@ -1313,7 +1316,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 
   entry->od_ino = src_dentry->d_inode->i_ino;
   memcpy(entry->od_name, dst_dentry->d_name.name, dst_dentry->d_name.len);
-  entry->od_name[dst_dentry->d_name.len] = 0;
+  entry->od_name[dst_dentry->d_name.len] = '\0';
 
   ospfs_inode(src_dentry->d_inode->i_ino)->oi_nlink++;
   
