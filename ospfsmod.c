@@ -944,7 +944,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
 		retval = copy_to_user(buffer, data + (*f_pos % OSPFS_BLKSIZE),n);
 		if (retval < 0){
-		  retval = -EIO; // Replace these lines
+		  retval = -EFAULT; // Replace these lines
 		  goto done;
 		}
 
