@@ -539,12 +539,15 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 	}
 
 	if (entry_off == dir_oi->oi_size) {
-		printk("<1>ospfs_unlink should not fail!\n");
+	  //		printk("<1>ospfs_unlink should not fail!\n");
 		return -ENOENT;
 	}
 
 	od->od_ino = 0;
 	oi->oi_nlink--;
+
+	if (oi->oi_ftype != OSPFS_FTYPE_SYMLINK && !oi->oi_nlink)
+	  change_size(oi,0);
 	return 0;
 }
 
