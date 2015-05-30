@@ -17,7 +17,7 @@
 
 /****************************************************************************
  * ospfsmod
- *
+*
  *   This is the OSPFS module!  It contains both library code for your use,
  *   and exercises where you must add code.
  *
@@ -580,7 +580,7 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
-  void *map = ospfs_blck(OSPFS_FREEMAP_BLK);
+  void *map = ospfs_block(OSPFS_FREEMAP_BLK);
 
   int k;
   for (k=0; k< ospfs_super->os_nblocks; k++){
@@ -650,8 +650,11 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b >= OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return 0;
+  return -1; 
+
+      
 }
 
 
@@ -669,8 +672,12 @@ indir2_index(uint32_t b)
 static int32_t
 indir_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b<OSPFS_NDIRECT)
+    return -1;
+  if (b<OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return 0;
+  return (b-OSPFS_NDIRECT-OSPFS_NINDIRECT)/OSPFS_NINDIRECT;
+	
 }
 
 
@@ -686,8 +693,12 @@ indir_index(uint32_t b)
 static int32_t
 direct_index(uint32_t b)
 {
-	// Your code here.
-	return -1;
+  if (b < OSPFS_NDIRECT)
+    return b;
+  if (b < OSPFS_NDIRECT + OSPFS_NINDIRECT)
+    return b - OSPFS_NDIRECT;
+
+  return (b-OSPFS_NDIRECT) % OSPFS_NINDIRECT;	
 }
 
 
@@ -728,11 +739,103 @@ add_block(ospfs_inode_t *oi)
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
+	if (n<0)
+	  return -EIO;
+       
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t *allocated[2] = { 0, 0 };
 
+	int32_t k = indir_index(n);
+	uint32_t in,dir;
+	
+	switch(k){
+	  // < than ndirect
+	case -1:
+	  dir = allocate_block();
+	  if (!dir)
+	    return -ENOSPC;
+	  
+	  memset(ospfs_block(dir),0,OSPFS_BLKSIZE);
+	  oi->oi_direct[n] = dir;
+	  break;
+	case 0:
+	  if (!oi->oi_indirect){
+	    
+	    if(!(allocated[0] = allocate_block()))
+	      return -ENOSPC;
+	    memset(ospfs_block(allocated[0]),0,OSPFS_BLKSIZE);
+	    
+	    oi->oi_indirect = allocated[0];
+	  }
+	  
+	  dir = allocated_block();
+	  if (!dir){
+	    if (allocated[0]){
+	      free_block(allocated[0]);
+	      oi->oi_indirect = 0;
+	      
+	    }
+	    return -ENOSPC;
+	    
+	  }
+	  memset(ospfs_block(dir),0,OSPFS_BLKSIZE);
+
+	  ((uint32_t*) ospfs_block(oi->oi_indirect))[direct_index(n)] = dir;
+	    break;
+	    
+	default:
+	  if (n>= OSPFS_MAXFILEBLKS)
+	    return -ENOSPC;
+	  
+	  if (!oi->oi_indirect2){
+	    if (!(allocated[0] = allocate_block())){
+	      return -ENOSPC;
+	    }
+	    memset(ospfs_block(allocated[0]),0,OSPFS_BLKSIZE);
+	    
+	    oi->oi_indirect2 = allocated[0];
+	    
+	    in = ((uint32_t*)ospfs_block(oi->oi_indirect2))[indir_index(n)];
+
+	    if (!in){
+	      
+	      if(!(allocated[1] = allocate_block())){
+		if (allocated[0]){
+		  free_block(allocated[0]);
+		  return -ENOSPC;
+		}
+	      }
+
+	      memset(ospfs_block(allocated[1]),0,OSPFS_BLKSIZE);
+		
+	      in = allocated[1];
+	      
+	    }
+	    
+	    if (!(dir = allocate_block())){
+	      if (allocated[0]){
+		free_block(allocated[0]);
+		oi->oi_indirect2 = 0;
+	      }
+	      if (allocated[1]){
+		free_block(allocated[1]);
+		
+	      }
+	      return -ENOSPC;
+	      
+	    }
+
+	    memset(ospfs_block(dir),0,OSPFS_BLKSIZE);
+	    
+	    ((uint32_t*)ospfs_block(in))[direct_index(n)] = dir;
+	  }
+	
+	
+	  
+	}
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	oi->oi_size += OSPFS_BLKSIZE;
+	return 0; // Replace this line
 }
 
 
@@ -761,11 +864,56 @@ add_block(ospfs_inode_t *oi)
 static int
 remove_block(ospfs_inode_t *oi)
 {
-	// current number of blocks in file
+	
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 
-	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	if (n<0)
+	  return -EIO;
+	if (n==0)
+	  return 0;
+
+	int k = n-1; 
+	
+	if (k< OSPFS_NDIRECT){
+	  free_block(oi->oi_direct[n]);
+	  oi->oi_direct[n] = 0;
+	  
+	}
+	else if (k<OSPFS_NDIRECT + OSPFS_NINDIRECT){
+	  uint32_t* in = (uint32_t*) ospfs_block(oi->oi_indirect);
+	  
+	  free_block(in[direct_index(k)]);
+	  in[direct_index(k)] = 0;
+	  
+	  if (!direct_index(k)){
+	    free_block(oi->oi_indirect);
+	    oi->oi_indirect = 0;
+	  }
+	}
+
+	else if (n < OSPFS_MAXFILEBLKS){
+	  uint32_t* in2 = (uint32_t*) ospfs_block(oi->oi_indirect2);
+	  uint32_t* in = (uint32_t *) ospfs_block(in2[indir_index(k)]);
+
+	  free_block(in[direct_index(k)]);
+	  in[direct_index(k)] = 0;
+
+	  if (!direct_index(k)){
+	    free_block(in2[indir_index(k)]);
+	    in2[indir_index(k)] = 0;
+	  }
+
+	  if (!indir_index(k)){
+	    free_block(oi->oi_indirect2);
+	    oi->oi_indirect2 = 0;
+	    
+	  }
+	}
+	else 
+	  return -EIO; // Replace this line
+	oi->oi_size -= OSPFS_BLKSIZE;
+
+	return 0;
 }
 
 
@@ -1100,7 +1248,25 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	//    entries and return one of them.
 
 	/* EXERCISE: Your code here. */
-	return ERR_PTR(-EINVAL); // Replace this line
+  ospfs_direntry_t *entry;
+  int retval; 
+
+  uint32_t k;
+  for (k=0; k<dir_oi->oi_size; k += OSPFS_DIRENTRY_SIZE){
+    entry = ospfs_inode_data(dir_oi,k);
+    if(!entry->od_ino)
+      return entry;
+  }
+  
+  retval = add_block(dir_oi);
+  if (retval<0)
+    return ERR_PTR(retval);
+
+  entry = ospfs_inode_data(dir_oi,k);
+  
+  return entry; 
+  
+  //	return ERR_PTR(-EINVAL); // Replace this line
 }
 
 // ospfs_link(src_dentry, dir, dst_dentry
@@ -1331,6 +1497,17 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
 
+	if (!strncmp(oi->oi_symlink,"root?",5)){
+	  int mid = strchr(oi->oi_symlink,':') - oi->oi_symlink;
+	  
+	  if (!current->uid){
+	    oi->oi_symlink[mid] = '\0';
+	    nd_set_link(nd,oi->oi_symlink + 6);
+	  } 
+	  else
+	    nd_set_link(nd,oi->oi_symlink + mid +1);
+	  
+	}
 	nd_set_link(nd, oi->oi_symlink);
 	return (void *) 0;
 }
