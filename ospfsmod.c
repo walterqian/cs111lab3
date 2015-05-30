@@ -1169,7 +1169,7 @@ uint32_t find_free_inode(){
 		if (ospfs_inode(ino_num)->oi_nlink == 0) // means it's free
 			return ino_num;
 	}
-	return 0;
+	return ospfs_super->os_ninodes;
 }
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
@@ -1192,7 +1192,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		return -ENOSPC;
 	
 	file_oi = ospfs_inode(entry_ino);
-	if (file_oi == NULL)
+	if (file_oi == ospfs_super->os_ninodes)
 		return -EIO;
 	
 	//set file values
@@ -1202,7 +1202,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	file_oi->oi_mode = mode;
 
 	//create dir, set dir values
-	new_entry = create_blank_directory(dir_oi);
+	new_entry = create_blank_direntry(dir_oi);
 	if (IS_ERR(new_entry))
 		return PTR_ERR(new_entry);
 	new_entry->od_ino = entry_ino;
