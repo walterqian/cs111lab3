@@ -166,7 +166,7 @@ ospfs_inode(ino_t ino)
 		return 0;
 	oi = ospfs_block(ospfs_super->os_firstinob);
 	return &oi[ino];
-
+}
 
 
 // ospfs_inode_blockno(oi, offset)
@@ -1135,7 +1135,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
   if (dst_dentry->d_name.len > OSPFS_MAXNAMELEN)
     return -ENAMETOOLONG;
  
-  if (find_direntry(dir_oi, dst_dentry->d_name.name, dst_dentry->d_name.len))
+  if (find_direntry(ospfs_inode(dir_oi), dst_dentry->d_name.name, dst_dentry->d_name.len))
     return -EEXIST;
 
   entry = create_blank_direntry(dir_oi);
