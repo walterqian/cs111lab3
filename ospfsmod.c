@@ -1185,7 +1185,7 @@ uint32_t find_free_inode(){
 		if (ospfs_inode(ino_num)->oi_nlink == 0) // means it's free
 			return ino_num;
 	}
-	return 0;
+	return ospfs_super->os_ninodes;
 }
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
@@ -1208,22 +1208,22 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		return -ENOSPC;
 	
 	file_oi = ospfs_inode(entry_ino);
-	if (file_oi == NULL)
+	if (file_oi == ospfs_super->os_ninodes)
 		return -EIO;
 	
 	//set file values
-	file_oi->size = 0;
+	file_oi->oi_size = 0;
 	file_oi->oi_ftype = OSPFS_FTYPE_REG;
-	file_oi->di_nlink = 1;
+	file_oi->oi_nlink = 1;
 	file_oi->oi_mode = mode;
 
 	//create dir, set dir values
-	new_entry = create_blank_directory(dir_oi);
+	new_entry = create_blank_direntry(dir_oi);
 	if (IS_ERR(new_entry))
 		return PTR_ERR(new_entry);
 	new_entry->od_ino = entry_ino;
-	memcpy(new_entry->od_name, direntry->od_name.name, direntry->od_name.len);
-	new_entry->od_name[direntry->d_name.len] = '\0';
+	memcpy(new_entry->od_name, dentry->d_name.name, dentry->d_name.len);
+	new_entry->od_name[dentry->d_name.len] = '\0';
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
