@@ -1207,11 +1207,11 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		return -EEXIST;
 	//create inode, set inode values
 	entry_ino = find_free_inode();
-	if (entry_ino == 0)
+	if (entry_ino >= ospfs_super->os_ninodes)
 		return -ENOSPC;
 	
 	file_oi = ospfs_inode(entry_ino);
-	if (file_oi == ospfs_super->os_ninodes)
+	if (file_oi == NULL)
 		return -EIO;
 	
 	//set file values
@@ -1278,13 +1278,13 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	if (find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len) != NULL)
 		return -EEXIST;
 	entry_ino = find_free_inode();
-	if (entry_ino == ospfs_super->os_ninodes)
+	if (entry_ino >= ospfs_super->os_ninodes)
 		return -ENOSPC;
 	//create symlink and set vars
 	new_symlink = (ospfs_symlink_inode_t*) ospfs_inode(entry_ino);	
 	
 	new_symlink->oi_size = strlen(symname);
-	memcpy(link->oi_symlink, symname, strlen(symname));
+	memcpy(new_symlink->oi_symlink, symname, strlen(symname));
 	new_symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
 	new_symlink->oi_nlink = 1;
 	
