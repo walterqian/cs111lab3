@@ -944,7 +944,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 
 		retval = copy_to_user(buffer, data + (*f_pos % OSPFS_BLKSIZE),n);
 		if (retval < 0){
-		  retval = -EIO; // Replace these lines
+		  retval = -EFAULT; // Replace these lines
 		  goto done;
 		}
 
@@ -1284,7 +1284,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	new_symlink = (ospfs_symlink_inode_t*) ospfs_inode(entry_ino);	
 	
 	new_symlink->oi_size = strlen(symname);
-	memcpy(link->oi_symlink, symname, strlen(symname));
+	memcpy(new_symlink->oi_symlink, symname, strlen(symname));
 	new_symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
 	new_symlink->oi_nlink = 1;
 	
