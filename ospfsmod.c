@@ -1182,7 +1182,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   3. Initialize the directory entry and inode.
 //
 //   EXERCISE: Complete this function.
-uint32_t find_free_inode(){
+uint32_t find_free_inode(void){
 	uint32_t ino_num;
 	for (ino_num = 1; ino_num < ospfs_super->os_ninodes; ino_num++){
 		if (ospfs_inode(ino_num)->oi_nlink == 0) // means it's free
@@ -1268,9 +1268,35 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
+	ospfs_symlink_inode_t* new_symlink = NULL;
+	ospfs_direntry_t* new_entry = NULL;
+	//check for errors
 
-	/* EXERCISE: Your code here. */
-	return -EINVAL;
+	if (dentry->d_name.len > OSPFS_MAXNAMELEN 
+		|| strlen(symname) > OSPFS_MAXNAMELEN)
+		return -ENAMETOOLONG;
+	if (find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len) != NULL)
+		return -EEXIST;
+	entry_ino = find_free_inode();
+	if (entry_ino == ospfs_super->os_ninodes)
+		return -ENOSPC;
+	//create symlink and set vars
+	new_symlink = (ospfs_symlink_inode_t*) ospfs_inode(entry_ino);	
+	
+	new_symlink->oi_size = strlen(symname);
+	memcpy(link->oi_symlink, symname, strlen(symname));
+	new_symlink->oi_ftype = OSPFS_FTYPE_SYMLINK;
+	new_symlink->oi_nlink = 1;
+	
+	//create dir entry and set 	
+	new_entry = create_blank_direntry(dir_oi);
+
+	if (IS_ERR(new_entry))
+		return PTR_ERR(new_entry);
+	new_entry->od_ino = entry_ino;
+	memcpy(new_entry->od_name, dentry->d_name.name, dentry->d_name.len);
+	new_entry->od_name[dentry->d_name.len] = '\0';
+	
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
