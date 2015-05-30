@@ -1163,14 +1163,51 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   3. Initialize the directory entry and inode.
 //
 //   EXERCISE: Complete this function.
-
+uint32_t find_free_inode(){
+	uint32_t ino_num;
+	for (ino_num = 1; ino_num < ospfs_super->os_ninodes; ino_num++){
+		if (ospfs_inode(ino_num)->oi_nlink == 0) // means it's free
+			return ino_num;
+	}
+	return 0;
+}
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
 {
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
-	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
+
+	ospfs_inode_t* file_oi = NULL;
+	ospfs_direntry_t* new_entry = NULL;
+	uint32_t block_no = 0;
+	
+	//error checking
+	if (dentry->d_name.len > OSPFS_MAXNAMELEN)
+		return -ENAMETOOLONG;
+	if (find_direntry(dir_oi, dentry->d_name.name, dentry->d_name.len))
+		return -EEXIST;
+	//create inode, set inode values
+	entry_ino = find_free_inode();
+	if (entry_ino == 0)
+		return -ENOSPC;
+	
+	file_oi = ospfs_inode(entry_ino);
+	if (file_oi == NULL)
+		return -EIO;
+	
+	//set file values
+	file_oi->size = 0;
+	file_oi->oi_ftype = OSPFS_FTYPE_REG;
+	file_oi->di_nlink = 1;
+	file_oi->oi_mode = mode;
+
+	//create dir, set dir values
+	new_entry = create_blank_directory(dir_oi);
+	if (IS_ERR(new_entry))
+		return PTR_ERR(new_entry);
+	new_entry->od_ino = entry_ino;
+	memcpy(new_entry->od_name, direntry->od_name.name, direntry->od_name.len);
+	new_entry->od_name[direntry->d_name.len] = '\0';
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
