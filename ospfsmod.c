@@ -166,7 +166,7 @@ ospfs_inode(ino_t ino)
 		return 0;
 	oi = ospfs_block(ospfs_super->os_firstinob);
 	return &oi[ino];
-
+}
 
 
 // ospfs_inode_blockno(oi, offset)
