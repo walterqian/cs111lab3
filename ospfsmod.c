@@ -166,7 +166,7 @@ ospfs_inode(ino_t ino)
 		return 0;
 	oi = ospfs_block(ospfs_super->os_firstinob);
 	return &oi[ino];
-}
+
 
 
 // ospfs_inode_blockno(oi, offset)
@@ -577,6 +577,15 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
+  void *map = ospfs_blck(OSPFS_FREEMAP_BLK);
+
+  int k;
+  for (k=0; k< ospfs_super->os_nblocks; k++){
+    if (bitvector_test(map,k)){
+      bitvector_clear(map,k);
+      return k; 
+    }
+  }
 	return 0;
 }
 
@@ -596,6 +605,13 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
+  void *map = ospfs_block(OSPFS_FREEMAP_BLK);
+  if (blockno < ospfs_super->os_firstinob)
+    return;
+  if (blockno > OSPFS_MAXFILEFLKS)
+    return;
+  if (!bitvector_test(map,blockno))
+    bitvector_set(map,blockno);
 }
 
 
@@ -794,16 +810,37 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	  r = add_block(oi);
+	  
+	  if ( r<0)
+	    break; 
+	  else if ( r == -ENOSPC){
+	    while (ospfs_size2nblocks(oi->oi_size) >ospfs_size2nblocks(old_size)){
+	      r = remove_block(oi);
+	    }
+	    oi->oi_size = old_size; 
+	    return -ENOSPC;
+	      
+	  } 
+	  else if (r == -EIO)
+	    return -EIO; 
+	  
+	  //		return -EIO; // Replace this line
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
+	  r = remove_block(oi);
+	  
+	  if (r<0)
+	    return r;
 	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	  //	return -EIO; // Replace this line
 	}
 
 	/* EXERCISE: Make sure you update necessary file meta data
 	             and return the proper value. */
-	return -EIO; // Replace this line
+	//return -EIO; // Replace this line
+	oi->oi_size = new_size;
+	return 0; 
 }
 
 
