@@ -526,29 +526,24 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 	ospfs_inode_t *oi = ospfs_inode(dentry->d_inode->i_ino);
 	ospfs_inode_t *dir_oi = ospfs_inode(dentry->d_parent->d_inode->i_ino);
 	int entry_off;
-	ospfs_direntry_t *od;
-
-	od = NULL; // silence compiler warning; entry_off indicates when !od
+	ospfs_direntry_t *od = NULL;
+	
+	//find correct inode
 	for (entry_off = 0; entry_off < dir_oi->oi_size;
 	     entry_off += OSPFS_DIRENTRY_SIZE) {
 		od = ospfs_inode_data(dir_oi, entry_off);
 		if (od->od_ino > 0
 		    && strlen(od->od_name) == dentry->d_name.len
-		    && memcmp(od->od_name, dentry->d_name.name, dentry->d_name.len) == 0)
-			break;
+		    && memcmp(od->od_name, dentry->d_name.name, dentry->d_name.len) == 0){	
+			od->od_ino = 0;
+			oi->oi_nlink--;
+
+			if (oi->oi_ftype != OSPFS_FTYPE_SYMLINK && !oi->oi_nlink)
+	  			change_size(oi,0);
+			return 0;
+		}
 	}
-
-	if (entry_off == dir_oi->oi_size) {
-	  //		printk("<1>ospfs_unlink should not fail!\n");
-		return -ENOENT;
-	}
-
-	od->od_ino = 0;
-	oi->oi_nlink--;
-
-	if (oi->oi_ftype != OSPFS_FTYPE_SYMLINK && !oi->oi_nlink)
-	  change_size(oi,0);
-	return 0;
+	return -ENOENT;
 }
 
 
@@ -875,14 +870,14 @@ remove_block(ospfs_inode_t *oi)
 	if (n==0)
 	  return 0;
 
-	int k = n-1; 
+	int k = indir_index(n-1); 
 	
-	if (k< OSPFS_NDIRECT){
+	if (k == -1){
 	  free_block(oi->oi_direct[n]);
 	  oi->oi_direct[n] = 0;
 	  
 	}
-	else if (k<OSPFS_NDIRECT + OSPFS_NINDIRECT){
+	else if (k == 0){
 	  uint32_t* in = (uint32_t*) ospfs_block(oi->oi_indirect);
 	  
 	  free_block(in[direct_index(k)]);
@@ -894,7 +889,9 @@ remove_block(ospfs_inode_t *oi)
 	  }
 	}
 
-	else if (n < OSPFS_MAXFILEBLKS){
+	else {
+	  if (n >= OSPFS_MAXFILEBLKS)
+		return -EIO;
 	  uint32_t* in2 = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	  uint32_t* in = (uint32_t *) ospfs_block(in2[indir_index(k)]);
 
@@ -912,8 +909,6 @@ remove_block(ospfs_inode_t *oi)
 	    
 	  }
 	}
-	else 
-	  return -EIO; // Replace this line
 	oi->oi_size -= OSPFS_BLKSIZE;
 
 	return 0;
